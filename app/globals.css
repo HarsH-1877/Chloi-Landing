@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 4.5rem;
+}
+
+body {
+  @apply bg-ink text-white antialiased;
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
