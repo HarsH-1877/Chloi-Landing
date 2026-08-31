@@ -1,0 +1,127 @@
+---
+# deploy.yml — Ansible playbook to configure the server and deploy Chloi landing page
+#
+# Usage:
+#   ansible-playbook -i inventory.ini deploy.yml
+
+- name: Deploy Chloi Landing Page
+  hosts: chloi
+  become: true
+
+  vars:
+    app_dir: /opt/chloi
+    repo_url: https://github.com/ashp15205/Chloi.git
+    repo_branch: main
+    image_name: chloi-landing
+    container_name: chloi-landing
+    host_port: 80
+    container_port: 3000
+
+  tasks:
+    # ── 1. System packages ──────────────────────────────────
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - git
+        state: present
+
+    # ── 2. Install Docker ───────────────────────────────────
+    - name: Add Docker GPG key
+      shell: |
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+          -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+      args:
+        creates: /etc/apt/keyrings/docker.asc
+
+    - name: Add Docker repository
+      shell: |
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+          https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+          > /etc/apt/sources-list.d/docker.list
+      args:
+        creates: /etc/apt/sources-list.d/docker.list
+
+    - name: Install Docker Engine
+      apt:
+        update_cache: true
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+
+    - name: Start and enable Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: true
+
+    # ── 3. Clone / pull the repo ────────────────────────────
+    - name: Clone Chloi repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: "{{ repo_branch }}"
+        force: true
+      register: git_result
+
+    # ── 4. Build the Docker image ───────────────────────────
+    - name: Build Docker image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        tag: latest
+        source: build
+        build:
+          path: "{{ app_dir }}"
+          pull: true
+        force_source: "{{ git_result.changed }}"
+
+    # ── 5. Run the container ────────────────────────────────
+    - name: Stop existing container (if any)
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+      ignore_errors: true
+
+    - name: Start Chloi container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}:latest"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ host_port }}:{{ container_port }}"
+
+    # ── 6. Healthcheck ──────────────────────────────────────
+    - name: Wait for the app to respond
+      uri:
+        url: "http://localhost:{{ host_port }}"
+        status_code: 200
+      retries: 12
+      delay: 5
+      register: healthcheck
+      until: healthcheck.status == 200
+
+    - name: Print success
+      debug:
+        msg: >
+          Chloi landing page is live at http://{{ ansible_host }}
