@@ -10,7 +10,7 @@
 
   vars:
     app_dir: /opt/chloi
-    repo_url: https://github.com/ashp15205/Chloi.git
+    repo_url: https://github.com/HarsH-1877/Chloi-Landing.git
     repo_branch: main
     image_name: chloi-landing
     container_name: chloi-landing

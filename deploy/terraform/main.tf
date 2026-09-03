@@ -148,7 +148,7 @@ resource "aws_instance" "chloi" {
 
               # Clone repo and launch Docker container
               mkdir -p /opt/chloi
-              git clone https://github.com/ashp15205/Chloi.git /opt/chloi
+              git clone https://github.com/HarsH-1877/Chloi-Landing.git /opt/chloi
               cd /opt/chloi
               docker build -t chloi-landing:latest .
               docker run -d --name chloi-landing --restart unless-stopped -p 80:3000 chloi-landing:latest
